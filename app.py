@@ -152,12 +152,7 @@ Context:
 with st.sidebar:
     st.header("⚙️ Setup")
 
-    groq_api_key = st.text_input(
-        "Groq API Key",
-        type="password",
-        placeholder="gsk_...",
-        help="Get a free key at console.groq.com",
-    )
+    groq_api_key = st.secrets["GROQ_API_KEY"] 
 
     uploaded_files = st.file_uploader(
         "Upload PDF documents",
@@ -165,9 +160,16 @@ with st.sidebar:
         accept_multiple_files=True,
     )
 
+    if uploaded_files:
+        total_size = sum(f.size for f in uploaded_files)
+        total_mb = total_size / (1024 * 1024)
+        st.caption(f"📄 {len(uploaded_files)} file(s) — {total_mb:.1f} MB")
+        if total_mb > 10:
+            st.warning("⚠️ Large files detected — processing may take several minutes on first run.")
+
     process_btn = st.button(
         "🚀 Process Documents",
-        disabled=not (groq_api_key and uploaded_files),
+        disabled=not uploaded_files,
         use_container_width=True,
     )
 
@@ -195,6 +197,7 @@ with st.sidebar:
 if not st.session_state.ready:
     st.info("👈 Add your Groq API key, upload PDFs, and click **Process Documents** to start.")
 else:
+    st.info("💡 Documents are processed per session — re-upload if you refresh the page.")
     # Render chat history
     for msg in st.session_state.chat_history:
         with st.chat_message(msg["role"]):
