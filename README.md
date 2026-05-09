@@ -3,6 +3,9 @@
 An intelligent Q&A chatbot powered by Retrieval-Augmented Generation (RAG) that allows the user to upload their own documents and use them as a knowledge base to avoid hallucinations by grounding answer with the provided context.
 
 ## Demo
+[**Try the live app**](https://rag-academic-tutor.streamlit.app/)
+
+![RAG Tutor demo](assets/demo.gif)
 
 ## Architecture
 
@@ -49,7 +52,7 @@ Evaluated on 4 domain-specific questions using RAGAS framework, with a score of 
 
 ## Roadmap
 
-- [ ] Streamlit frontend — drag & drop PDF upload + chat interface
+- [x] Streamlit frontend — drag & drop PDF upload + chat interface
 - [ ] Persistent Qdrant Cloud — no more session resets
 - [ ] LangSmith tracing — debug and monitor every chain call
 - [ ] CI/CD with GitHub Actions — auto-run RAGAS on every change
@@ -63,3 +66,7 @@ Evaluated on 4 domain-specific questions using RAGAS framework, with a score of 
 - PDF encoding issues with LaTeX-generated documents and how to fix them
 - RAG evaluation with RAGAS and what faithfulness vs answer relevancy measure
 - Why more retrieved chunks (k) improves relevancy but can reduce faithfulness
+
+## 📝 Notes
+
+- Streamlit deployment code was scaffolded with AI assistance and adapted for this project.
