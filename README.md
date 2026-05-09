@@ -26,6 +26,8 @@ Conversational RAG Chain         # LangChain + memory
 
 Evaluated on 4 domain-specific questions using RAGAS framework, with a score of 0.82 in **Faithfulness** and 0.94 in **Answer Relevancy**
 
+![RAGAS Metrics](assets/metrics.png)
+
 ## Tech Stack
 
 | Tool | Purpose |
