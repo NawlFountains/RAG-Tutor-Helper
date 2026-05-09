@@ -149,7 +149,7 @@ Context:
         history_messages_key="history",
     )
 
-    return chain_with_history, store, len(splits)
+    return chain_with_history, store 
 
 
 # ── Sidebar ─────────────────────────────────────────────────────────────────────
