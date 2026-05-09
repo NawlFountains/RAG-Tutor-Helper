@@ -58,8 +58,7 @@ def load_embeddings():
         encode_kwargs={"normalize_embeddings": True, "batch_size": 8},
     )
 
-
-def process_pdfs(uploaded_files, groq_api_key: str):
+def load_pdfs(uploaded_files):
     """Load, clean, chunk, embed and index uploaded PDFs."""
     pages = []
 
@@ -75,15 +74,18 @@ def process_pdfs(uploaded_files, groq_api_key: str):
     # Clean encoding artifacts
     for doc in pages:
         doc.page_content = clean_text(doc.page_content)
+    return pages
 
+def chunk_documents(pages):
     # Chunk
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=1000,
         chunk_overlap=200,
         separators=["\n\n", "\n", ".", "!", "¡", "¿", "?", ",", " "],
     )
-    splits = splitter.split_documents(pages)
+    return splitter.split_documents(pages)
 
+def build_vectorstore(splits):
     # Embed + store
     embeddings = load_embeddings()
     client = QdrantClient(":memory:")
@@ -95,7 +97,9 @@ def process_pdfs(uploaded_files, groq_api_key: str):
         client=client, collection_name="rag_docs", embedding=embeddings
     )
     vectorstore.add_documents(splits)
+    return vectorstore
 
+def build_chain(uploaded_files, groq_api_key: str):
     # Retriever
     retriever = vectorstore.as_retriever(
         search_type="similarity", search_kwargs={"k": 5}
@@ -174,16 +178,34 @@ with st.sidebar:
     )
 
     if process_btn:
-        with st.spinner("Processing documents..."):
-            try:
-                chain, store, n_chunks = process_pdfs(uploaded_files, groq_api_key)
+        try:
+            with st.status("Processing...", expanded=True) as status:
+                st.write("📄 Loading and cleaning PDFs...")
+                pages = load_pdfs(uploaded_files)
+                st.write(f"✅ Loaded {len(pages)} pages")
+
+                st.write("✂️ Chunking documents...")
+                splits = chunk_documents(pages)
+                st.write(f"✅ Created {len(splits)} chunks")
+
+                st.write("🧠 Generating embeddings (this may take a few minutes)...")
+                vectorstore = build_vectorstore(splits)
+                st.write("✅ Embeddings done")
+
+                st.write("🔗 Building RAG chain...")
+                chain, store = build_chain(vectorstore, groq_api_key)
+                st.write("✅ Chain ready")
+
                 st.session_state.chain = chain
                 st.session_state.store = store
                 st.session_state.chat_history = []
                 st.session_state.ready = True
-                st.success(f"✅ Indexed {n_chunks} chunks from {len(uploaded_files)} file(s)")
-            except Exception as e:
-                st.error(f"Error: {e}")
+                status.update(label="✅ Ready to chat!", state="complete")
+
+        except MemoryError:
+            st.error("❌ Out of memory — try uploading fewer or smaller PDFs.")
+        except Exception as e:
+            st.error(f"❌ Error: {e}")
 
     if st.session_state.ready:
         st.divider()
@@ -195,7 +217,7 @@ with st.sidebar:
 
 # ── Chat area ───────────────────────────────────────────────────────────────────
 if not st.session_state.ready:
-    st.info("👈 Add your Groq API key, upload PDFs, and click **Process Documents** to start.")
+    st.info("👈 Upload PDFs, and click **Process Documents** to start.")
 else:
     st.info("💡 Documents are processed per session — re-upload if you refresh the page.")
     # Render chat history
