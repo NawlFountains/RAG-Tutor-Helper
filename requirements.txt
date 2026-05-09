@@ -7,3 +7,4 @@ qdrant-client==1.13.3
 sentence-transformers==3.4.1
 pymupdf==1.25.5
 streamlit==1.45.0
+torch==2.2.2
