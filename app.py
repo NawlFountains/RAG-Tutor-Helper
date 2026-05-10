@@ -51,9 +51,9 @@ def clean_text(text: str) -> str:
 
 
 @st.cache_resource(show_spinner="Loading embedding model (first time may take a while)...")
-def load_embeddings():
+def load_embeddings(model_name: str):
     return HuggingFaceEmbeddings(
-        model_name="intfloat/multilingual-e5-large",
+        model_name=model_name,
         model_kwargs={"device": "cpu"},
         encode_kwargs={"normalize_embeddings": True, "batch_size": 8},
     )
@@ -85,13 +85,17 @@ def chunk_documents(pages):
     )
     return splitter.split_documents(pages)
 
-def build_vectorstore(splits):
+def build_vectorstore(splits, model_option: str):
+    config = MODEL_CONFIG[model_option]
+
     # Embed + store
-    embeddings = load_embeddings()
+    embeddings = load_embeddings(config["name"])
     client = QdrantClient(":memory:")
     client.create_collection(
         collection_name="rag_docs",
-        vectors_config=VectorParams(size=1024, distance=Distance.COSINE),
+        vectors_config=VectorParams(
+            size=config["size"], distance=Distance.COSINE
+        ),
     )
     vectorstore = QdrantVectorStore(
         client=client, collection_name="rag_docs", embedding=embeddings
@@ -158,6 +162,22 @@ with st.sidebar:
 
     groq_api_key = st.secrets["GROQ_API_KEY"] 
 
+    model_option = st.selectbox(
+            "Embedding model",
+            options=["small", "base", "large"],
+            index=0,
+            help="Small: faster, handles more docs, Large: slower, better quality."
+    )
+
+    MODEL_CONFIG = {
+    "small": {"name": "intfloat/multilingual-e5-small", "size": 384, "label": "⚡ Fast — best for large documents"},
+    "base":  {"name": "intfloat/multilingual-e5-base",  "size": 768, "label": "🟡 Balanced"},
+    "large": {"name": "intfloat/multilingual-e5-large", "size": 1024, "label": "🎯 Best quality — small documents only"},
+    }
+
+    st.caption(MODEL_CONFIG[model_option]["label"])
+
+
     uploaded_files = st.file_uploader(
         "Upload PDF documents",
         type="pdf",
@@ -171,6 +191,9 @@ with st.sidebar:
         if total_mb > 10:
             st.warning("⚠️ Large files detected — processing may take several minutes on first run.")
 
+    if model_option == "large":
+        st.warning("⚠️ Large model may crash on Streamlit free tier with big documents.")
+    
     process_btn = st.button(
         "🚀 Process Documents",
         disabled=not uploaded_files,
@@ -189,7 +212,7 @@ with st.sidebar:
                 st.write(f"✅ Created {len(splits)} chunks")
 
                 st.write("🧠 Generating embeddings (this may take a few minutes)...")
-                vectorstore = build_vectorstore(splits)
+                vectorstore = build_vectorstore(splits, model_option)
                 st.write("✅ Embeddings done")
 
                 st.write("🔗 Building RAG chain...")
