@@ -89,7 +89,7 @@ def chunk_documents(pages):
 
 def build_vectorstore(splits, model_option: str):
     config = MODEL_CONFIG[model_option]
-    collection_name = f"session_{st.session.state.session_id}"
+    collection_name = f"session_{st.session_state.session_id}"
 
     # Embed + store
     embeddings = load_embeddings(config["name"])
