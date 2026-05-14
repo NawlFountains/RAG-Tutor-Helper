@@ -30,7 +30,7 @@ for key, default in {
     "chat_history": [],
     "store": {},
     "ready": False,
-    "session_id": str(uuid.uuid4(),
+    "session_id": str(uuid.uuid4()),
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
