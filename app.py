@@ -4,6 +4,7 @@ import os
 import re
 import unicodedata
 import time
+import uuid
 
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -29,6 +30,7 @@ for key, default in {
     "chat_history": [],
     "store": {},
     "ready": False,
+    "session_id": str(uuid.uuid4(),
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -87,18 +89,27 @@ def chunk_documents(pages):
 
 def build_vectorstore(splits, model_option: str):
     config = MODEL_CONFIG[model_option]
+    collection_name = f"session_{st.session.state.session_id}"
 
     # Embed + store
     embeddings = load_embeddings(config["name"])
-    client = QdrantClient(":memory:")
+    client = QdrantClient(
+            url=st.secrets["QDRANT_URL"],
+            api_key=st.secrets["QDRANT_API_KEY"],
+    )
+
+    # Referesh documents on restart but can keep adding on same session
+    if client.collection_exists(collection_name):
+        client.delete_collection(collection_name)
+
     client.create_collection(
-        collection_name="rag_docs",
+        collection_name=collection_name,
         vectors_config=VectorParams(
             size=config["size"], distance=Distance.COSINE
         ),
     )
     vectorstore = QdrantVectorStore(
-        client=client, collection_name="rag_docs", embedding=embeddings
+        client=client, collection_name=collection_name, embedding=embeddings
     )
     vectorstore.add_documents(splits)
     return vectorstore
