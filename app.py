@@ -219,7 +219,7 @@ with st.sidebar:
                 st.write("✅ Embeddings done")
 
                 st.write("🔗 Building RAG chain...")
-                chain, store = build_chain(vectorstore, groq_api_key)
+                chain = build_chain(vectorstore, groq_api_key)
                 st.write("✅ Chain ready")
 
                 st.session_state.chain = chain
