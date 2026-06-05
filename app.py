@@ -15,6 +15,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
+from streamlit.runtime.state import session_state
 from langchain_classic.chains import create_history_aware_retriver 
 from operator import itemgetter
 
@@ -112,6 +113,15 @@ def build_vectorstore(splits, model_option: str):
     )
     vectorstore.add_documents(splits)
     return vectorstore
+
+SUMMARY_TRIGGERS = ['what do you know', 'summarize your knowledge', 'qué sabes', 'resumen tu conocimiento']
+
+def summarize_knowledge(vectorstore, grop_api_key: str) -> str:
+    from langchain.chains.summarize import load_summarize_chain
+    llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=groq_api_key)
+    all_docs = vectorstore.similarity_search(('',k=100)
+    chain = load_summarize_chain(llm, chain_type='map_reduce')
+    return chain.invoke(all_docs)['output_text']
 
 def build_chain(vectorstore, groq_api_key: str):
     # Retriever
@@ -276,10 +286,13 @@ else:
         # Get answer
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
-                answer = st.session_state.chain.invoke(
-                    {"question": question},
-                    config={"configurable": {"session_id": "user_session"}},
-                )
+                if any(t in question.lower() for t in SUMMARY_TRIGGERS):
+                    answer = summarize_knowledge(st.session_state.vectorstore, groq_api_key)
+                else:
+                    answer = st.session_state.chain.invoke(
+                            {"question": question},
+                            config={"configurable": {"session_id": "user_session"}},
+                            )
             st.markdown(answer)
 
         st.session_state.chat_history.append({"role": "assistant", "content": answer})
