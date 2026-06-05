@@ -12,8 +12,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_community.chat_message_histories import ChatMessageHistory
-from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_core import HumanMessage, AIMessage
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
 
@@ -26,6 +25,8 @@ st.caption("Upload your PDFs and ask questions about them.")
 for key, default in {
     "chain": None,
     "chat_history": [],
+    "lc_chat_history": [],
+    "lc_chat_history": [],
     "store": {},
     "ready": False,
     "session_id": str(uuid.uuid4()),
@@ -154,20 +155,7 @@ Answer in the SAME LANGUAGE the question was asked in.
     # Step 3: combine
     rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
 
-    store = {}
-    def get_session_history(session_id: str):
-        if session_id not in store:
-            store[session_id] = ChatMessageHistory()
-        return store[session_id]
-
-    chain_with_history = RunnableWithMessageHistory(
-        rag_chain,
-        get_session_history,
-        input_messages_key="input",
-        history_messages_key="chat_history",
-        output_messages_key="answer",
-    )
-    return chain_with_history, store
+    return rag_chain 
 
 # ── Sidebar ─────────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -234,7 +222,6 @@ with st.sidebar:
                 st.write("✅ Chain ready")
 
                 st.session_state.chain = chain
-                st.session_state.store = store
                 st.session_state.chat_history = []
                 st.session_state.ready = True
                 status.update(label="✅ Ready to chat!", state="complete")
@@ -249,7 +236,7 @@ with st.sidebar:
         st.divider()
         if st.button("🗑️ Clear chat", use_container_width=True):
             st.session_state.chat_history = []
-            st.session_state.store = {}
+            st.session_state.lc_chat_history = {}
             st.rerun()
 
 
@@ -276,11 +263,13 @@ else:
                 if any(t in question.lower() for t in SUMMARY_TRIGGERS):
                     answer = summarize_knowledge(st.session_state.vectorstore, groq_api_key)
                 else:
-                    result= st.session_state.chain.invoke(
-                            {"input": question},
-                            config={"configurable": {"session_id": "user_session"}},
-                            )
-                    answer = result['answer']
+                    result = st.session_state.chain.invoke({
+                        "input": question,
+                        "chat_history": st.session_state.lc_chat_history,
+                        })
+                    answer = result["answer"]
+                    st.session_state.lc_chat_history.append(HumanMessage(content=question))
+                    st.session_state.lc_chat_history.append(AIMessage(content=answer))
             st.markdown(answer)
 
         st.session_state.chat_history.append({"role": "assistant", "content": answer})
