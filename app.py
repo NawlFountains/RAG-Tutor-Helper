@@ -3,7 +3,6 @@ import tempfile
 import os
 import unicodedata
 import uuid
-import traceback
 
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -236,7 +235,6 @@ with st.sidebar:
             st.error("❌ Out of memory — try uploading fewer or smaller PDFs.")
         except Exception as e:
             st.error(f"❌ Error: {e}")
-            st.code(traceback.format_exc())
 
     if st.session_state.ready:
         st.divider()
