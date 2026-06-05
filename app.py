@@ -1,9 +1,7 @@
 import streamlit as st
 import tempfile
 import os
-import re
 import unicodedata
-import time
 import uuid
 
 from langchain_community.document_loaders import PyMuPDFLoader
@@ -17,6 +15,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.output_parsers import StrOutputParser
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
+from langchain_classic.chains import create_history_aware_retriver 
 from operator import itemgetter
 
 # ── Page config ────────────────────────────────────────────────────────────────
@@ -114,7 +113,7 @@ def build_vectorstore(splits, model_option: str):
     vectorstore.add_documents(splits)
     return vectorstore
 
-def build_chain(uploaded_files, groq_api_key: str):
+def build_chain(vectorstore, groq_api_key: str):
     # Retriever
     retriever = vectorstore.as_retriever(
         search_type="similarity", search_kwargs={"k": 5}
@@ -123,11 +122,19 @@ def build_chain(uploaded_files, groq_api_key: str):
     # LLM
     llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=groq_api_key)
 
+    contextualize_prompt = ChatPromptTemplate.from_messages([
+        ("system", "Given the chat history and the latest user questino, reformulate it as a standalone question. Return it as-is if already standalone."),
+        ("human", "{question"),
+    ])
+    history_aware_retriver = create_history_aware_retriver(
+        llm, retriver, contextualize_prompt
+    )
+
     # Prompt with memory
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a helpful assistant specialized in mathematics and engineering.
+        ("system", """You are a helpful assistant specialized for helping students understand.
 The context may contain mathematical formulas with imperfect formatting — interpret them carefully.
-Answer using ONLY the context below. If the answer is not in the context, say "I don't know / No lo sé".
+Answer using ONLY the context below. If the answer is not in the context, say "I don't know" or  "No lo sé" depending on the language used in the conversation or recent prompt.
 Answer in the SAME LANGUAGE the question was asked in.
 
 Context:
@@ -141,7 +148,7 @@ Context:
 
     rag_chain = (
         {
-            "context": itemgetter("question") | retriever | format_docs,
+            "context": itemgetter("question") | history_aware_retriver | format_docs,
             "question": itemgetter("question"),
             "history": itemgetter("history"),
         }
