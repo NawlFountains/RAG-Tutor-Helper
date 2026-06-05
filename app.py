@@ -134,7 +134,7 @@ def build_chain(vectorstore, groq_api_key: str):
 
     contextualize_prompt = ChatPromptTemplate.from_messages([
         ("system", "Given the chat history and the latest user questino, reformulate it as a standalone question. Return it as-is if already standalone."),
-        MessagesPlaceholder(variable_name='history'),
+        MessagesPlaceholder(variable_name='chat_history'),
         ("human", "{input}"),
     ])
     history_aware_retriever = create_history_aware_retriever(
@@ -150,7 +150,7 @@ Answer in the SAME LANGUAGE the question was asked in.
 
 Context:
 {context}"""),
-        MessagesPlaceholder(variable_name="history"),
+        MessagesPlaceholder(variable_name="chat_history"),
         ("human", "{input}"),
     ])
 
@@ -161,7 +161,7 @@ Context:
         {
             "context": itemgetter("input") | history_aware_retriever | format_docs,
             "input": itemgetter("input"),
-            "history": itemgetter("history"),
+            "chat_history": itemgetter("chat_history"),
         }
         | prompt
         | llm
@@ -179,7 +179,7 @@ Context:
         rag_chain,
         get_session_history,
         input_messages_key="input",
-        history_messages_key="history",
+        history_messages_key="chat_history",
     )
 
     return chain_with_history, store 
