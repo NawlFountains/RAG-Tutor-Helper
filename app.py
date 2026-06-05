@@ -259,6 +259,7 @@ with st.sidebar:
             st.error("❌ Out of memory — try uploading fewer or smaller PDFs.")
         except Exception as e:
             st.error(f"❌ Error: {e}")
+            st.code(traceback.format_exc())
 
     if st.session_state.ready:
         st.divider()
