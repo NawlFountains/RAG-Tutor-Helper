@@ -119,7 +119,7 @@ SUMMARY_TRIGGERS = ['what do you know', 'summarize your knowledge', 'qué sabes'
 def summarize_knowledge(vectorstore, grop_api_key: str) -> str:
     from langchain.chains.summarize import load_summarize_chain
     llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=groq_api_key)
-    all_docs = vectorstore.similarity_search(('',k=100)
+    all_docs = vectorstore.similarity_search('',k=100)
     chain = load_summarize_chain(llm, chain_type='map_reduce')
     return chain.invoke(all_docs)['output_text']
 
