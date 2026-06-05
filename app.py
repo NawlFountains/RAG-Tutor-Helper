@@ -116,12 +116,17 @@ def build_vectorstore(splits, model_option: str):
 
 SUMMARY_TRIGGERS = ['what do you know', 'summarize your knowledge', 'qué sabes', 'resumen tu conocimiento']
 
+
+# Because of rate limitting quering the API we do a similarity search on keywords
+# and then join them together, after that use a single query
 def summarize_knowledge(vectorstore, groq_api_key: str) -> str:
     from langchain.chains.summarize import load_summarize_chain
     llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=groq_api_key)
-    all_docs = vectorstore.similarity_search('',k=100)
-    chain = load_summarize_chain(llm, chain_type='map_reduce')
-    return chain.invoke(all_docs)['output_text']
+    docs = vectorstore.similarity_search('introduction definition concept example theorem', k=8)
+    context = '\n\n'.join(doc.page_content for doc in docs)
+    prompt = f'Based on the following excerpts from a document, summarize what topics and contentes are covered:\n\n{context}'
+    response = llm.invoke(prompt)
+    return response.content
 
 def format_docs(docs):
     return "\n\n".join(doc.page_content for doc in docs)
