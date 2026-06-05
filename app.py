@@ -12,12 +12,10 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_core.output_parsers import StrOutputParser
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
-from streamlit.runtime.state import session_state
-from langchain.chains import create_history_aware_retriever 
-from operator import itemgetter
+from langchain.chains import create_history_aware_retriever, create_retrieval_chain
+from langchain.chains.combine_documents import create_stuff_documents_chain
 
 # ── Page config ────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="RAG Tutor", page_icon="🎓", layout="wide")
@@ -123,53 +121,40 @@ def summarize_knowledge(vectorstore, groq_api_key: str) -> str:
     chain = load_summarize_chain(llm, chain_type='map_reduce')
     return chain.invoke(all_docs)['output_text']
 
+def format_docs(docs):
+    return "\n\n".join(doc.page_content for doc in docs)
+
 def build_chain(vectorstore, groq_api_key: str):
-    # Retriever
     retriever = vectorstore.as_retriever(
         search_type="similarity", search_kwargs={"k": 5}
     )
-
-    # LLM
     llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=groq_api_key)
 
+    # Step 1: contextualize the question
     contextualize_prompt = ChatPromptTemplate.from_messages([
-        ("system", "Given the chat history and the latest user questino, reformulate it as a standalone question. Return it as-is if already standalone."),
-        MessagesPlaceholder(variable_name='chat_history'),
+        ("system", "Given the chat history and the latest user question, reformulate it as a standalone question. Return it as-is if already standalone."),
+        MessagesPlaceholder("chat_history"),
         ("human", "{input}"),
     ])
-    history_aware_retriever = create_history_aware_retriever(
-        llm, retriever , contextualize_prompt
-    )
+    history_aware_retriever = create_history_aware_retriever(llm, retriever, contextualize_prompt)
 
-    # Prompt with memory
-    prompt = ChatPromptTemplate.from_messages([
+    # Step 2: answer using retrieved context
+    qa_prompt = ChatPromptTemplate.from_messages([
         ("system", """You are a helpful assistant specialized for helping students understand.
 The context may contain mathematical formulas with imperfect formatting — interpret them carefully.
-Answer using ONLY the context below. If the answer is not in the context, say "I don't know" or  "No lo sé" depending on the language used in the conversation or recent prompt.
+Answer using ONLY the context below. If the answer is not in the context, say "I don't know" or "No lo sé" depending on the language used in the conversation or recent prompt.
 Answer in the SAME LANGUAGE the question was asked in.
 
-Context:
 {context}"""),
-        MessagesPlaceholder(variable_name="chat_history"),
+        MessagesPlaceholder("chat_history"),
         ("human", "{input}"),
     ])
+    question_answer_chain = create_stuff_documents_chain(llm, qa_prompt)
 
-    def format_docs(docs):
-        return "\n\n".join(doc.page_content for doc in docs)
-
-    rag_chain = (
-        {
-            "context": itemgetter("input") | history_aware_retriever | format_docs,
-            "input": itemgetter("input"),
-            "chat_history": itemgetter("chat_history"),
-        }
-        | prompt
-        | llm
-        | StrOutputParser()
-    )
+    # Step 3: combine
+    rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
 
     store = {}
-
     def get_session_history(session_id: str):
         if session_id not in store:
             store[session_id] = ChatMessageHistory()
@@ -180,10 +165,9 @@ Context:
         get_session_history,
         input_messages_key="input",
         history_messages_key="chat_history",
+        output_messages_key="answer",
     )
-
-    return chain_with_history, store 
-
+    return chain_with_history, store
 
 # ── Sidebar ─────────────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -292,10 +276,11 @@ else:
                 if any(t in question.lower() for t in SUMMARY_TRIGGERS):
                     answer = summarize_knowledge(st.session_state.vectorstore, groq_api_key)
                 else:
-                    answer = st.session_state.chain.invoke(
+                    result= st.session_state.chain.invoke(
                             {"input": question},
                             config={"configurable": {"session_id": "user_session"}},
                             )
+                    answer = result['answer']
             st.markdown(answer)
 
         st.session_state.chat_history.append({"role": "assistant", "content": answer})
