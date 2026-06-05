@@ -16,7 +16,7 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_community.chat_message_histories import ChatMessageHistory
 from langchain_core.runnables.history import RunnableWithMessageHistory
 from streamlit.runtime.state import session_state
-from langchain.chains import create_history_aware_retriver 
+from langchain.chains import create_history_aware_retriever 
 from operator import itemgetter
 
 # ── Page config ────────────────────────────────────────────────────────────────
@@ -136,7 +136,7 @@ def build_chain(vectorstore, groq_api_key: str):
         ("system", "Given the chat history and the latest user questino, reformulate it as a standalone question. Return it as-is if already standalone."),
         ("human", "{question"),
     ])
-    history_aware_retriver = create_history_aware_retriver(
+    history_aware_retriver = create_history_aware_retriever(
         llm, retriver, contextualize_prompt
     )
 
