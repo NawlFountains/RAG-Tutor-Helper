@@ -116,7 +116,7 @@ def build_vectorstore(splits, model_option: str):
 
 SUMMARY_TRIGGERS = ['what do you know', 'summarize your knowledge', 'qué sabes', 'resumen tu conocimiento']
 
-def summarize_knowledge(vectorstore, grop_api_key: str) -> str:
+def summarize_knowledge(vectorstore, groq_api_key: str) -> str:
     from langchain.chains.summarize import load_summarize_chain
     llm = ChatGroq(model="llama-3.3-70b-versatile", api_key=groq_api_key)
     all_docs = vectorstore.similarity_search('',k=100)
@@ -134,7 +134,8 @@ def build_chain(vectorstore, groq_api_key: str):
 
     contextualize_prompt = ChatPromptTemplate.from_messages([
         ("system", "Given the chat history and the latest user questino, reformulate it as a standalone question. Return it as-is if already standalone."),
-        ("human", "{question}"),
+        MessagesPlaceholder(variable_name='history'),
+        ("human", "{input}"),
     ])
     history_aware_retriever = create_history_aware_retriever(
         llm, retriever , contextualize_prompt
@@ -150,7 +151,7 @@ Answer in the SAME LANGUAGE the question was asked in.
 Context:
 {context}"""),
         MessagesPlaceholder(variable_name="history"),
-        ("human", "{question}"),
+        ("human", "{input}"),
     ])
 
     def format_docs(docs):
@@ -158,8 +159,8 @@ Context:
 
     rag_chain = (
         {
-            "context": itemgetter("question") | history_aware_retriever | format_docs,
-            "question": itemgetter("question"),
+            "context": itemgetter("input") | history_aware_retriever | format_docs,
+            "input": itemgetter("input"),
             "history": itemgetter("history"),
         }
         | prompt
@@ -177,7 +178,7 @@ Context:
     chain_with_history = RunnableWithMessageHistory(
         rag_chain,
         get_session_history,
-        input_messages_key="question",
+        input_messages_key="input",
         history_messages_key="history",
     )
 
@@ -241,6 +242,7 @@ with st.sidebar:
 
                 st.write("🧠 Generating embeddings (this may take a few minutes)...")
                 vectorstore = build_vectorstore(splits, model_option)
+                st.session_state.vectorstore = vectorstore
                 st.write("✅ Embeddings done")
 
                 st.write("🔗 Building RAG chain...")
@@ -290,7 +292,7 @@ else:
                     answer = summarize_knowledge(st.session_state.vectorstore, groq_api_key)
                 else:
                     answer = st.session_state.chain.invoke(
-                            {"question": question},
+                            {"input": question},
                             config={"configurable": {"session_id": "user_session"}},
                             )
             st.markdown(answer)
