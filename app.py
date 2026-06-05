@@ -4,6 +4,7 @@ import os
 import unicodedata
 import uuid
 
+
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -11,6 +12,7 @@ from langchain_qdrant import QdrantVectorStore
 from qdrant_client import QdrantClient
 from qdrant_client.models import Distance, VectorParams
 from langchain_groq import ChatGroq
+from groq import RateLimitError
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain.chains import create_history_aware_retriever, create_retrieval_chain
@@ -264,16 +266,19 @@ else:
         # Get answer
         with st.chat_message("assistant"):
             with st.spinner("Thinking..."):
-                if any(t in question.lower() for t in SUMMARY_TRIGGERS):
-                    answer = summarize_knowledge(st.session_state.vectorstore, groq_api_key)
-                else:
-                    result = st.session_state.chain.invoke({
-                        "input": question,
-                        "chat_history": st.session_state.lc_chat_history,
-                        })
-                    answer = result["answer"]
-                    st.session_state.lc_chat_history.append(HumanMessage(content=question))
-                    st.session_state.lc_chat_history.append(AIMessage(content=answer))
+                try:
+                    if any(t in question.lower() for t in SUMMARY_TRIGGERS):
+                        answer = summarize_knowledge(st.session_state.vectorstore, groq_api_key)
+                    else:
+                        result = st.session_state.chain.invoke({
+                            "input": question,
+                            "chat_history": st.session_state.lc_chat_history,
+                            })
+                        answer = result["answer"]
+                        st.session_state.lc_chat_history.append(HumanMessage(content=question))
+                        st.session_state.lc_chat_history.append(AIMessage(content=answer))
+                except RateLimitError:
+                    answer = 'Rate limit reached. Please wait a moment and try again' 
             st.markdown(answer)
 
         st.session_state.chat_history.append({"role": "assistant", "content": answer})
