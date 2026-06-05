@@ -3,6 +3,7 @@ import tempfile
 import os
 import unicodedata
 import uuid
+import traceback
 
 from langchain_community.document_loaders import PyMuPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
